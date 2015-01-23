@@ -7,7 +7,23 @@ First you need to download, configure and build [FFmpeg](http://ffmpeg.org/index
 	
 	cd kxmovie
 	git submodule update --init	
+
+On OSX 10.10, I had to do the following
+
+	sudo mkdir /usr/local
+	sudo mkdir /usr/local/bin
+	sudo cp gas-preprocessor/gas-preprocessor.pl /usr/local/
+	sudo chmod 777 /usr/local/bin/gas-preprocessor.pl 
+
+The gas-preprocessor should be taken from https://github.com/aleufms/kxmovie
+Note that in this project, it is no longer a sub-module
+
+Build with
+
 	rake
+
+Note that this repository has a modified Rake file that builds a small footprint FFMpeg for video decoding only.  
+It also has different targets for leaving out simulator builds (use this for your release binaries).
 
 ### Usage
 
