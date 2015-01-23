@@ -97,34 +97,34 @@ FFMPEG_BUILD_ARGS_ARM64 = [
 
 FFMPEG_BUILD_ARGS = [
 '--disable-everything',
-'--enable-decoder=mpeg4',
+#'--enable-decoder=mpeg4',
 #'--enable-decoder=mpegvideo',
 '--enable-decoder=mp3',
-'--enable-decoder=aac',
+#'--enable-decoder=aac',
 '--enable-decoder=h264',
-'--enable-decoder=flv',
-'--enable-parser=aac',
-'--enable-parser=mpeg4video',
+#'--enable-decoder=flv',
+#'--enable-parser=aac',
+#'--enable-parser=mpeg4video',
 '--enable-parser=mpegaudio',
-'--enable-parser=mpegvideo',
-'--enable-parser=ac3',
-'--enable-parser=h261',
+#'--enable-parser=mpegvideo',
+#'--enable-parser=ac3',
+#'--enable-parser=h261',
 '--enable-parser=h264',
 #'--enable-parser=vc1',
-'--enable-demuxer=mpegvideo',
-'--enable-demuxer=aac',
-'--enable-demuxer=m4v',
+#'--enable-demuxer=mpegvideo',
+#'--enable-demuxer=aac',
+#'--enable-demuxer=m4v',
 '--enable-demuxer=flv',
-'--enable-demuxer=mov',
+#'--enable-demuxer=mov',
 '--enable-demuxer=h264',
 #'--enable-demuxer=vc1',
-'--enable-muxer=h264',
-'--enable-muxer=mpeg2video',
-'--enable-muxer=mp4', 
-'--enable-muxer=mov',
+#'--enable-muxer=h264',
+#'--enable-muxer=mpeg2video',
+#'--enable-muxer=mp4', 
+#'--enable-muxer=mov',
 '--enable-protocol=file',
 #'--enable-indev=v4l',
-'--enable-indev=v4l2',
+#'--enable-indev=v4l2',
 #'--disable-ffmpeg',
 #'--disable-ffplay',
 #'--disable-ffserver',
@@ -212,6 +212,10 @@ def mkLipoArgs(lib)
 	"-create -arch armv7 armv7/#{lib}.a -arch armv7 armv7s/#{lib}.a -arch arm64 arm64/#{lib}.a -output universal/#{lib}.a"
 end
 
+def mkLipoDebugArgs(lib)
+	"-create -arch armv7 armv7/#{lib}.a -arch armv7 armv7s/#{lib}.a -arch arm64 arm64/#{lib}.a -arch i386 i386/#{lib}.a -arch x86_64 x86_64/#{lib}.a -output universal/#{lib}.a"
+end
+
 desc "check gas-preprocessor.pl"
 task :check_gas_preprocessor do	
 
@@ -268,7 +272,25 @@ task :build_ffmpeg_arm64 do
 end
 
 desc "Build ffmpeg universal libs"
-task :build_ffmpeg_universal do	
+task :build_ffmpeg_universal_debug do	
+
+	ensureDir('FFmpeg/universal')
+	
+	FFMPEG_LIBS.each do |x|
+		args = mkLipoDebugArgs(x)
+		system_or_exit "cd FFmpeg; xcrun -sdk iphoneos lipo #{args}"
+	end
+	
+	dest = ensureDir('libs/FFmpeg/')
+
+	FFMPEG_LIBS.each do |x|
+		FileUtils.move Pathname.new("FFmpeg/universal/#{x}.a"), dest
+	end
+
+end
+
+desc "Build ffmpeg universal libs"
+task :build_ffmpeg_universal_release do	
 
 	ensureDir('FFmpeg/universal')
 	
@@ -332,20 +354,34 @@ task :build_movie_release do
 
 	system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Release -sdk iphoneos#{SDK_VERSION} build SYMROOT=#{buildDir} -arch armv7"	
 
-	system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Debug -sdk iphonesimulator#{SDK_VERSION} build SYMROOT=#{buildDir} -arch x86_64"	
+	#system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Debug -sdk iphonesimulator#{SDK_VERSION} build SYMROOT=#{buildDir} -arch x86_64"	
+	#FileUtils.move Pathname.new('tmp/build/Debug-iphonesimulator/libkxmovie.a'), Pathname.new('tmp/build/Debug-iphonesimulator/libkxmovie_x86_64.a')	
 
-	FileUtils.move Pathname.new('tmp/build/Debug-iphonesimulator/libkxmovie.a'), Pathname.new('tmp/build/Debug-iphonesimulator/libkxmovie_x86_64.a')	
+	#system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Debug -sdk iphonesimulator#{SDK_VERSION} build SYMROOT=#{buildDir}"
 
-	system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Debug -sdk iphonesimulator#{SDK_VERSION} build SYMROOT=#{buildDir}"
-
-	system_or_exit "lipo -create -arch armv7 tmp/build/Release-iphoneos/libkxmovie.a -arch armv7 tmp/build/Release-iphoneos/libkxmovie_armv7s.a -arch arm64 tmp/build/Release-iphoneos/libkxmovie_arm64.a -arch x86_64 tmp/build/Debug-iphonesimulator/libkxmovie_x86_64.a -arch i386 tmp/build/Debug-iphonesimulator/libkxmovie.a -output tmp/build/libkxmovie.a"
+	system_or_exit "lipo -create -arch armv7 tmp/build/Release-iphoneos/libkxmovie.a -arch armv7 tmp/build/Release-iphoneos/libkxmovie_armv7s.a -arch arm64 tmp/build/Release-iphoneos/libkxmovie_arm64.a -output tmp/build/libkxmovie.a"
 	
 	#FileUtils.copy Pathname.new('tmp/build/Release-iphoneos/libkxmovie.a'), buildDir
 end
 
 desc "Copy to output folder"
-task :copy_movie do	
-	dest = ensureDir 'output'	
+task :copy_movie_release do	
+	dest = ensureDir 'output/release'	
+	FileUtils.move Pathname.new('tmp/build/libkxmovie.a'), dest		
+	FileUtils.copy Pathname.new('libs/FFmpeg/libavcodec.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libavformat.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libavutil.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libswscale.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libswresample.a'), dest
+	FileUtils.copy Pathname.new('kxmovie/KxMovieViewController.h'), dest	
+	FileUtils.copy Pathname.new('kxmovie/KxAudioManager.h'), dest	
+	FileUtils.copy Pathname.new('kxmovie/KxMovieDecoder.h'), dest
+	FileUtils.copy_entry Pathname.new('kxmovie/kxmovie.bundle'), dest + 'kxmovie.bundle'
+end	
+
+desc "Copy to output folder"
+task :copy_movie_debug do	
+	dest = ensureDir 'output/debug'	
 	FileUtils.move Pathname.new('tmp/build/libkxmovie.a'), dest		
 	FileUtils.copy Pathname.new('libs/FFmpeg/libavcodec.a'), dest
 	FileUtils.copy Pathname.new('libs/FFmpeg/libavformat.a'), dest
@@ -360,10 +396,11 @@ end
 
 ##
 task :clean => [:clean_movie_debug, :clean_movie_release, :clean_ffmpeg]
-task :build_ffmpeg => [:check_gas_preprocessor, :build_ffmpeg_armv7, :build_ffmpeg_armv7s, :build_ffmpeg_arm64, :build_ffmpeg_i386, :build_ffmpeg_x86_64, :build_ffmpeg_universal]
-task :build_ffmpeg_device_only => [:check_gas_preprocessor, :build_ffmpeg_armv7, :build_ffmpeg_armv7s, :build_ffmpeg_arm64, :build_ffmpeg_universal]
+task :build_ffmpeg => [:check_gas_preprocessor, :build_ffmpeg_armv7, :build_ffmpeg_armv7s, :build_ffmpeg_arm64, :build_ffmpeg_i386, :build_ffmpeg_x86_64, :build_ffmpeg_universal_debug]
+task :build_ffmpeg_device_only => [:check_gas_preprocessor, :build_ffmpeg_armv7, :build_ffmpeg_armv7s, :build_ffmpeg_arm64, :build_ffmpeg_universal_release]
 #task :build_movie => [:build_movie_debug, :copy_movie] 
-task :build_movie => [:build_movie_release, :copy_movie] 
-task :build_all => [:build_ffmpeg_device_only, :build_movie] 
-# task :default => [:build_all]
+task :build_movie => [:build_movie_release] 
+task :build_all_release => [:clean, :build_ffmpeg_device_only, :build_movie, :copy_movie_release] 
+task :build_all_debug => [:clean, :build_ffmpeg, :build_movie_debug, :copy_movie_debug] 
+task :build_all => [:build_all_debug] 
 task :default => [:build_all]
