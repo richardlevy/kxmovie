@@ -100,6 +100,7 @@ FFMPEG_BUILD_ARGS = [
 #'--enable-decoder=mpeg4',
 #'--enable-decoder=mpegvideo',
 '--enable-decoder=mp3',
+'--enable-decoder=vorbis',
 #'--enable-decoder=aac',
 '--enable-decoder=h264',
 #'--enable-decoder=flv',
@@ -110,6 +111,7 @@ FFMPEG_BUILD_ARGS = [
 #'--enable-parser=ac3',
 #'--enable-parser=h261',
 '--enable-parser=h264',
+'--enable-parser=vorbis',
 #'--enable-parser=vc1',
 #'--enable-demuxer=mpegvideo',
 #'--enable-demuxer=aac',
@@ -117,6 +119,7 @@ FFMPEG_BUILD_ARGS = [
 '--enable-demuxer=flv',
 #'--enable-demuxer=mov',
 '--enable-demuxer=h264',
+'--enable-demuxer=matroska',
 #'--enable-demuxer=vc1',
 #'--enable-muxer=h264',
 #'--enable-muxer=mpeg2video',
@@ -125,12 +128,12 @@ FFMPEG_BUILD_ARGS = [
 '--enable-protocol=file',
 #'--enable-indev=v4l',
 #'--enable-indev=v4l2',
-#'--disable-ffmpeg',
-#'--disable-ffplay',
-#'--disable-ffserver',
-#'--disable-ffprobe',
-#'--disable-doc',
-#'--disable-bzlib',
+'--disable-ffmpeg',
+'--disable-ffplay',
+'--disable-ffserver',
+'--disable-ffprobe',
+'--disable-doc',
+'--enable-bzlib',
 '--target-os=darwin',
 '--enable-cross-compile',
 #'--disable-encoders',
@@ -203,6 +206,7 @@ def buildArch(arch)
 	system_or_exit "cd FFmpeg; ./configure #{args}"
 	system_or_exit "cd FFmpeg; make"	
 	moveLibs(dest)	
+	# Comment out the following line to see executables
 	system_or_exit "cd FFmpeg; [ -f -.d ] && rm -- -.d; make clean"
 
 end
@@ -271,13 +275,16 @@ task :build_ffmpeg_arm64 do
 	buildArch('arm64')	
 end
 
-desc "Build ffmpeg universal libs"
-task :build_ffmpeg_universal_debug do	
-
+def universalBuild(debug)
 	ensureDir('FFmpeg/universal')
 	
 	FFMPEG_LIBS.each do |x|
-		args = mkLipoDebugArgs(x)
+		args=""
+		if (debug)
+			args = mkLipoDebugArgs(x)
+		else
+			args = mkLipoArgs(x)
+		end
 		system_or_exit "cd FFmpeg; xcrun -sdk iphoneos lipo #{args}"
 	end
 	
@@ -286,25 +293,16 @@ task :build_ffmpeg_universal_debug do
 	FFMPEG_LIBS.each do |x|
 		FileUtils.move Pathname.new("FFmpeg/universal/#{x}.a"), dest
 	end
-
 end
 
-desc "Build ffmpeg universal libs"
+desc "Build ffmpeg universal libs for debugging - incl simulator"
+task :build_ffmpeg_universal_debug do	
+	universalBuild(true)
+end
+
+desc "Build ffmpeg universal libs for release - no simulator"
 task :build_ffmpeg_universal_release do	
-
-	ensureDir('FFmpeg/universal')
-	
-	FFMPEG_LIBS.each do |x|
-		args = mkLipoArgs(x)
-		system_or_exit "cd FFmpeg; xcrun -sdk iphoneos lipo #{args}"
-	end
-	
-	dest = ensureDir('libs/FFmpeg/')
-
-	FFMPEG_LIBS.each do |x|
-		FileUtils.move Pathname.new("FFmpeg/universal/#{x}.a"), dest
-	end
-
+	universalBuild(false)
 end
 
 ## build libkxmovie
@@ -354,44 +352,32 @@ task :build_movie_release do
 
 	system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Release -sdk iphoneos#{SDK_VERSION} build SYMROOT=#{buildDir} -arch armv7"	
 
-	#system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Debug -sdk iphonesimulator#{SDK_VERSION} build SYMROOT=#{buildDir} -arch x86_64"	
-	#FileUtils.move Pathname.new('tmp/build/Debug-iphonesimulator/libkxmovie.a'), Pathname.new('tmp/build/Debug-iphonesimulator/libkxmovie_x86_64.a')	
+	system_or_exit "lipo -create -arch armv7 tmp/build/Release-iphoneos/libkxmovie.a -arch armv7 tmp/build/Release-iphoneos/libkxmovie_armv7s.a -arch arm64 tmp/build/Release-iphoneos/libkxmovie_arm64.a -output tmp/build/libkxmovie.a"	
+end
 
-	#system_or_exit "xcodebuild -project kxmovie.xcodeproj -target kxmovie -configuration Debug -sdk iphonesimulator#{SDK_VERSION} build SYMROOT=#{buildDir}"
-
-	system_or_exit "lipo -create -arch armv7 tmp/build/Release-iphoneos/libkxmovie.a -arch armv7 tmp/build/Release-iphoneos/libkxmovie_armv7s.a -arch arm64 tmp/build/Release-iphoneos/libkxmovie_arm64.a -output tmp/build/libkxmovie.a"
-	
-	#FileUtils.copy Pathname.new('tmp/build/Release-iphoneos/libkxmovie.a'), buildDir
+def copyFiles(dest)
+	FileUtils.move Pathname.new('tmp/build/libkxmovie.a'), dest		
+	FileUtils.copy Pathname.new('libs/FFmpeg/libavcodec.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libavformat.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libavutil.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libswscale.a'), dest
+	FileUtils.copy Pathname.new('libs/FFmpeg/libswresample.a'), dest
+	FileUtils.copy Pathname.new('kxmovie/KxMovieViewController.h'), dest	
+	FileUtils.copy Pathname.new('kxmovie/KxAudioManager.h'), dest	
+	FileUtils.copy Pathname.new('kxmovie/KxMovieDecoder.h'), dest
+	FileUtils.copy_entry Pathname.new('kxmovie/kxmovie.bundle'), dest + 'kxmovie.bundle'
 end
 
 desc "Copy to output folder"
 task :copy_movie_release do	
 	dest = ensureDir 'output/release'	
-	FileUtils.move Pathname.new('tmp/build/libkxmovie.a'), dest		
-	FileUtils.copy Pathname.new('libs/FFmpeg/libavcodec.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libavformat.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libavutil.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libswscale.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libswresample.a'), dest
-	FileUtils.copy Pathname.new('kxmovie/KxMovieViewController.h'), dest	
-	FileUtils.copy Pathname.new('kxmovie/KxAudioManager.h'), dest	
-	FileUtils.copy Pathname.new('kxmovie/KxMovieDecoder.h'), dest
-	FileUtils.copy_entry Pathname.new('kxmovie/kxmovie.bundle'), dest + 'kxmovie.bundle'
+	copyFiles(dest);
 end	
 
 desc "Copy to output folder"
 task :copy_movie_debug do	
 	dest = ensureDir 'output/debug'	
-	FileUtils.move Pathname.new('tmp/build/libkxmovie.a'), dest		
-	FileUtils.copy Pathname.new('libs/FFmpeg/libavcodec.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libavformat.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libavutil.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libswscale.a'), dest
-	FileUtils.copy Pathname.new('libs/FFmpeg/libswresample.a'), dest
-	FileUtils.copy Pathname.new('kxmovie/KxMovieViewController.h'), dest	
-	FileUtils.copy Pathname.new('kxmovie/KxAudioManager.h'), dest	
-	FileUtils.copy Pathname.new('kxmovie/KxMovieDecoder.h'), dest
-	FileUtils.copy_entry Pathname.new('kxmovie/kxmovie.bundle'), dest + 'kxmovie.bundle'
+	copyFiles(dest);
 end	
 
 ##

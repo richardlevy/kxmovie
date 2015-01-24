@@ -25,6 +25,8 @@ Build with
 Note that this repository has a modified Rake file that builds a small footprint FFMpeg for video decoding only.  
 It also has different targets for leaving out simulator builds (use this for your release binaries).
 
+	rake build_all_release - this leaves out the similator builds for smaller archive files
+
 ### Usage
 
 1. Drop files from kxmovie/output folder in your project.
